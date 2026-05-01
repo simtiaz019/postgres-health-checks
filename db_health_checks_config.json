@@ -1,0 +1,89 @@
+{
+  "settings": {
+    "connect_timeout": 10,
+    "statement_timeout_ms": 30000,
+    "default_output_dir": "reports",
+    "state_file": "db_health_checks_state.json",
+    "top_sql_limit": 10,
+    "long_running_query_seconds": 300,
+    "long_running_query_alert_seconds": 900,
+    "idle_in_transaction_seconds": 300,
+    "idle_in_transaction_alert_seconds": 900,
+    "blocking_sql_limit": 10,
+    "connection_usage_warn_pct": 80,
+    "connection_usage_critical_pct": 90,
+    "replication_lag_bytes_warn": 268435456,
+    "replication_lag_bytes_critical": 1073741824,
+    "standby_replay_delay_warn_seconds": 300,
+    "standby_replay_delay_critical_seconds": 900,
+    "wal_receiver_stale_warn_seconds": 300,
+    "wal_receiver_stale_critical_seconds": 900,
+    "archive_ready_warn_count": 20,
+    "archive_ready_critical_count": 100,
+    "filesystem_usage_warn_pct": 80,
+    "filesystem_usage_critical_pct": 90,
+    "data_dir_growth_warn_bytes": 0,
+    "data_dir_growth_critical_bytes": 0,
+    "wal_dir_growth_warn_bytes": 0,
+    "wal_dir_growth_critical_bytes": 0,
+    "major_alert_severities": [
+      "critical",
+      "high"
+    ]
+  },
+  "database_defaults": {
+    "database": "postgres",
+    "username": "postgres",
+    "password": "REPLACE_DB_PASSWORD"
+  },
+  "ssh_defaults": {
+    "enabled": true,
+    "port": 22,
+    "username": "named_os_user",
+    "password": "REPLACE_OS_PASSWORD",
+    "timeout_seconds": 20,
+    "look_for_keys": false,
+    "allow_agent": false
+  },
+  "nodes": [
+    {
+      "name": "node1",
+      "host": "172.23.4.20",
+      "port": 9999,
+      "expected_standby_count": 4
+    },
+    {
+      "name": "node2",
+      "host": "172.23.4.21",
+      "port": 10000
+    },
+    {
+      "name": "node3",
+      "host": "172.23.4.22",
+      "port": 10001
+    },
+    {
+      "name": "node4",
+      "host": "172.23.4.23",
+      "port": 10002
+    },
+    {
+      "name": "node5",
+      "host": "172.23.4.24",
+      "port": 10003
+    }
+  ],
+  "email": {
+    "enabled": true,
+    "SMTP_HOST": "172.16.5.30",
+    "SMTP_PORT": "25",
+    "SMTP_MAIL_FROM": "bi.report@pbftl.com",
+    "SMTP_FROM_NAME": "Airflow",
+    "SMTP_EHLO_IDENTITY": "airflow.pbftl",
+    "SMTP_STARTTLS": "False",
+    "SMTP_SSL": "False",
+    "to": [
+      "shariar.imtiaz@pbftl.com"
+    ]
+  }
+}

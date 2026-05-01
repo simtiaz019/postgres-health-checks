@@ -77,13 +77,13 @@
     "enabled": true,
     "SMTP_HOST": "172.16.5.30",
     "SMTP_PORT": "25",
-    "SMTP_MAIL_FROM": "bi.report@pbftl.com",
+    "SMTP_MAIL_FROM": "dba@xxx.com",
     "SMTP_FROM_NAME": "Airflow",
-    "SMTP_EHLO_IDENTITY": "airflow.pbftl",
+    "SMTP_EHLO_IDENTITY": "airflow.xxxx",
     "SMTP_STARTTLS": "False",
     "SMTP_SSL": "False",
     "to": [
-      "shariar.imtiaz@pbftl.com"
+      "xyz@xxxx.com"
     ]
   }
 }

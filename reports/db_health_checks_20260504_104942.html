@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DB Health Checks</title>
+  <style>
+    body { font-family: "Segoe UI", Tahoma, sans-serif; margin: 24px; background: #f8fafc; color: #142236; }
+    h1, h2, h3, h4 { margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; background: #ffffff; margin-bottom: 16px; }
+    th, td { border: 1px solid #d7e0ea; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #14324b; color: #ffffff; }
+    tr:nth-child(even) td { background: #f6f8fb; }
+    .hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .hero-card { background: #ffffff; border: 1px solid #d7e0ea; border-radius: 14px; padding: 16px; }
+    .hero-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #62748a; }
+    .hero-value { margin-top: 6px; font-size: 28px; font-weight: 700; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 14px 0 22px; }
+    .tile { background: #ffffff; border: 1px solid #d7e0ea; border-radius: 14px; padding: 14px; }
+    .tile-label { color: #62748a; font-size: 12px; text-transform: uppercase; }
+    .tile-value { margin-top: 6px; font-size: 20px; font-weight: 700; }
+    .node-section { background: #ffffff; border: 1px solid #d7e0ea; border-radius: 18px; padding: 20px; margin-top: 24px; }
+    .meta { color: #62748a; margin-bottom: 8px; }
+    .section-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; }
+    .card { background: #fbfdff; border: 1px solid #d7e0ea; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+    .card-header { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .badge { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: #ffffff; }
+    .severity-critical { background: #b42318; }
+    .severity-high { background: #c2410c; }
+    .severity-medium { background: #b54708; }
+    .severity-low { background: #475467; }
+    .severity-info { background: #155eef; }
+    .empty { color: #62748a; font-style: italic; }
+    .error-card { border-color: #fda29b; background: #fff6f5; }
+    @media (max-width: 960px) {
+      .section-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>PostgreSQL Daily Health Check</h1>
+  <div class="meta">Generated at 20260504_104942 UTC</div>
+  <div class="hero">
+    <div class="hero-card"><div class="hero-label">Nodes</div><div class="hero-value">1</div></div>
+    <div class="hero-card"><div class="hero-label">Critical Alerts</div><div class="hero-value">0</div></div>
+    <div class="hero-card"><div class="hero-label">High Alerts</div><div class="hero-value">0</div></div>
+    <div class="hero-card"><div class="hero-label">Medium Alerts</div><div class="hero-value">0</div></div>
+  </div>
+  <h2>Cluster Summary</h2>
+  <table><thead><tr><th>Node</th><th>Host</th><th>Port</th><th>Role</th><th>Database</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Errors</th></tr></thead><tbody><tr><td>node5</td><td>172.24.4.41</td><td>5679</td><td>standby</td><td>postgres</td><td>0</td><td>0</td><td>0</td><td>0</td><td>1</td></tr></tbody></table>
+  <section class='node-section'><h2>node5 (172.24.4.41:5679)</h2><div class='meta'>Database=postgres | Generated=2026-05-04T10:49:37.283426+00:00 | PostgreSQL=PostgreSQL 17.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-5), 64-bit</div><div class='tiles'><div class='tile'><div class='tile-label'>Role</div><div class='tile-value'>standby</div></div><div class='tile'><div class='tile-label'>Current DB</div><div class='tile-value'>postgres</div></div><div class='tile'><div class='tile-label'>Connections</div><div class='tile-value'>n/a / n/a</div></div><div class='tile'><div class='tile-label'>Connection Usage</div><div class='tile-value'>n/a%</div></div><div class='tile'><div class='tile-label'>Archive Ready</div><div class='tile-value'>n/a</div></div><div class='tile'><div class='tile-label'>Daily TPS</div><div class='tile-value'>n/a</div></div></div><div class='card error-card'><h4>Collection Errors</h4><ul><li>Health collection failed: SSH authentication failed for dba_shariar@172.24.4.41: Authentication failed.</li></ul></div><div class='section-grid'><div><h3>Major Findings</h3><p class='empty'>No findings on this node.</p></div><div><h3>Instance Health</h3><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody><tr><td>Total Connections</td><td>n/a</td></tr><tr><td>Active Connections</td><td>n/a</td></tr><tr><td>Idle In Transaction</td><td>n/a</td></tr><tr><td>Lock Waiters</td><td>n/a</td></tr><tr><td>Max Connections</td><td>n/a</td></tr><tr><td>Usage Percent</td><td>n/a%</td></tr><tr><td>Uptime</td><td>92 days, 2:05:20.549815</td></tr><tr><td>Postmaster Start</td><td>2026-02-01 14:44:16+06:00</td></tr></tbody></table><h4>Standby Replication</h4><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody><tr><td>Receiver Status</td><td>n/a</td></tr><tr><td>Last Message Receipt</td><td>n/a</td></tr><tr><td>Latest End LSN</td><td>n/a</td></tr><tr><td>Replay Delay</td><td>n/a</td></tr><tr><td>Replay Backlog</td><td>n/a</td></tr><tr><td>Replay Paused</td><td>n/a</td></tr></tbody></table><h3>Host Health</h3><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody><tr><td>Host Collection</td><td>Unavailable</td></tr><tr><td>Remote Hostname</td><td>n/a</td></tr><tr><td>Host Uptime</td><td>n/a</td></tr><tr><td>Load Average</td><td>n/a</td></tr><tr><td>Memory Used</td><td>n/a</td></tr><tr><td>Memory Available</td><td>n/a</td></tr></tbody></table><h4>Filesystem Usage</h4><p class='empty'>No rows.</p><h3>Storage And WAL</h3><p class='empty'>No rows.</p><h4>Daily Rate Metrics</h4><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody><tr><td>Interval Seconds</td><td>n/a</td></tr><tr><td>TPS</td><td>n/a</td></tr><tr><td>Rows Read / Sec</td><td>n/a</td></tr><tr><td>Rows Written / Sec</td><td>n/a</td></tr><tr><td>Buffer Accesses / Sec</td><td>n/a</td></tr><tr><td>Deadlocks Delta</td><td>n/a</td></tr><tr><td>Data Dir Growth</td><td>n/a</td></tr><tr><td>WAL Dir Growth</td><td>n/a</td></tr><tr><td>Archive Ready Delta</td><td>n/a</td></tr></tbody></table><h3>Performance</h3><h4>Long Running SQLs</h4><p class='empty'>No rows.</p><h4>Blocking SQLs</h4><p class='empty'>No rows.</p><h4>Top SQL By Total Time</h4><p class='empty'>No rows.</p></div></div></section>
+</body>
+</html>

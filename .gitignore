@@ -1,0 +1,9 @@
+# Ignore local config file containing credentials and environment-specific settings
+/db_health_checks_config.json
+
+# Ignore Python bytecode and caches
+__pycache__/
+*.pyc
+
+# Ignore local virtual environment
+.venv/

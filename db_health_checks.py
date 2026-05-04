@@ -81,6 +81,10 @@ class NodeReport:
     state: Dict[str, Any]
 
 
+class AuthenticationFailure(RuntimeError):
+    pass
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run PostgreSQL and host daily health checks and email a consolidated HTML report."
@@ -171,6 +175,21 @@ def load_settings(config_data: Dict[str, Any]) -> Dict[str, Any]:
     settings = dict(DEFAULT_SETTINGS)
     settings.update(config_data.get("settings", {}))
     return settings
+
+
+def is_auth_failure_message(message: str) -> bool:
+    lowered = str(message).lower()
+    markers = (
+        "authentication failed",
+        "password authentication failed",
+        "access denied",
+        "permission denied",
+        "sorry, try again",
+        "account is locked",
+        "too many authentication failures",
+        "pam",
+    )
+    return any(marker in lowered for marker in markers)
 
 
 def merge_node_config(
@@ -403,11 +422,19 @@ def open_ssh_client(ssh_cfg: Dict[str, Any]):
         return None
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        ssh_port = int(str(ssh_cfg.get("port", 22)).strip() or 22)
+    except (ValueError, TypeError):
+        ssh_port = 22
+    try:
+        ssh_timeout = int(str(ssh_cfg.get("timeout_seconds", 20)).strip() or 20)
+    except (ValueError, TypeError):
+        ssh_timeout = 20
     connect_kwargs = {
         "hostname": ssh_cfg.get("host"),
-        "port": int(ssh_cfg.get("port", 22)),
+        "port": ssh_port,
         "username": ssh_cfg.get("username"),
-        "timeout": int(ssh_cfg.get("timeout_seconds", 20)),
+        "timeout": ssh_timeout,
         "look_for_keys": parse_bool(ssh_cfg.get("look_for_keys"), default=False),
         "allow_agent": parse_bool(ssh_cfg.get("allow_agent"), default=False),
     }
@@ -418,19 +445,74 @@ def open_ssh_client(ssh_cfg: Dict[str, Any]):
     missing = [field for field in ("hostname", "username") if not connect_kwargs.get(field)]
     if missing:
         raise ValueError(f"SSH config is missing: {', '.join(missing)}")
-    client.connect(**connect_kwargs)
+    try:
+        client.connect(**connect_kwargs)
+    except Exception as exc:
+        if is_auth_failure_message(str(exc)):
+            raise AuthenticationFailure(f"SSH authentication failed for {connect_kwargs.get('username')}@{connect_kwargs.get('hostname')}: {exc}") from exc
+        raise
     return client
 
 
-def ssh_run(client, command: str) -> str:
-    stdin, stdout, stderr = client.exec_command(command, timeout=30)
-    _ = stdin
-    output = stdout.read().decode("utf-8", errors="replace").strip()
-    error = stderr.read().decode("utf-8", errors="replace").strip()
-    exit_status = stdout.channel.recv_exit_status()
+def ssh_run(client, command: str, as_postgres: bool = False, sudo_password: Optional[str] = None) -> str:
+    def run_remote(remote_command: str, use_pty: bool = False) -> Tuple[str, str, int]:
+        stdin, stdout, stderr = client.exec_command(remote_command, timeout=30, get_pty=use_pty)
+        _ = stdin
+        output = stdout.read().decode("utf-8", errors="replace").strip()
+        error = stderr.read().decode("utf-8", errors="replace").strip()
+        exit_status = stdout.channel.recv_exit_status()
+        return output, error, exit_status
+
+    remote_command = command
+    if as_postgres:
+        # Use non-interactive sudo to avoid repeated password prompts that can trigger account lockout.
+        remote_command = f"sudo -n -u postgres bash -lc {shlex.quote(command)}"
+    output, error, exit_status = run_remote(remote_command)
     if exit_status != 0:
+        if as_postgres:
+            # If sudo requires a password, provide the SSH user's password non-interactively.
+            if sudo_password:
+                sudo_with_password = f"sudo -S -p '' -u postgres bash -lc {shlex.quote(command)}"
+                stdin, stdout, stderr = client.exec_command(sudo_with_password, timeout=30, get_pty=True)
+                stdin.write(str(sudo_password) + "\n")
+                stdin.flush()
+                _ = stdin
+                output3 = stdout.read().decode("utf-8", errors="replace").strip()
+                error3 = stderr.read().decode("utf-8", errors="replace").strip()
+                status3 = stdout.channel.recv_exit_status()
+                if status3 == 0:
+                    return output3
+                if is_auth_failure_message(error3):
+                    raise AuthenticationFailure(f"Sudo authentication failed while switching to postgres user: {error3}")
+            stdin2, stdout2, stderr2 = client.exec_command(command, timeout=30)
+            _ = stdin2
+            fallback_output = stdout2.read().decode("utf-8", errors="replace").strip()
+            fallback_error = stderr2.read().decode("utf-8", errors="replace").strip()
+            fallback_status = stdout2.channel.recv_exit_status()
+            if fallback_status == 0:
+                return fallback_output
+            if is_auth_failure_message(fallback_error) or is_auth_failure_message(error):
+                raise AuthenticationFailure(
+                    f"Authentication failed while running remote command as postgres user: {fallback_error or error}"
+                )
+            raise RuntimeError(
+                fallback_error
+                or error
+                or f"Remote command failed with exit status {fallback_status}: {command}"
+            )
+        if is_auth_failure_message(error):
+            raise AuthenticationFailure(f"Remote authentication failed: {error}")
         raise RuntimeError(error or f"Remote command failed with exit status {exit_status}: {command}")
     return output
+
+
+def parse_int(value: Any, default: Optional[int] = None) -> Optional[int]:
+    if value is None:
+        return default
+    try:
+        return int(str(value).strip())
+    except (ValueError, TypeError):
+        return default
 
 
 def parse_free_output(value: str) -> Dict[str, Optional[int]]:
@@ -442,10 +524,10 @@ def parse_free_output(value: str) -> Dict[str, Optional[int]]:
         if len(parts) < 7:
             continue
         return {
-            "total_bytes": int(parts[1]),
-            "used_bytes": int(parts[2]),
-            "free_bytes": int(parts[3]),
-            "available_bytes": int(parts[6]),
+            "total_bytes": parse_int(parts[1]),
+            "used_bytes": parse_int(parts[2]),
+            "free_bytes": parse_int(parts[3]),
+            "available_bytes": parse_int(parts[6]),
         }
     return {
         "total_bytes": None,
@@ -465,10 +547,10 @@ def parse_df_output(value: str) -> List[Dict[str, Any]]:
         rows.append(
             {
                 "filesystem": parts[0],
-                "size_bytes": int(parts[1]),
-                "used_bytes": int(parts[2]),
-                "available_bytes": int(parts[3]),
-                "used_pct": int(parts[4].replace("%", "")),
+                "size_bytes": parse_int(parts[1]) or 0,
+                "used_bytes": parse_int(parts[2]) or 0,
+                "available_bytes": parse_int(parts[3]) or 0,
+                "used_pct": parse_int(parts[4].replace("%", "")) or 0,
                 "mountpoint": parts[5],
             }
         )
@@ -480,15 +562,18 @@ def collect_host_metrics(
     data_directory: Optional[str],
     wal_directory: Optional[str],
     tablespace_locations: List[Optional[str]],
+    sudo_password: Optional[str] = None,
 ) -> Dict[str, Any]:
     if client is None:
         return {"enabled": False}
 
     metrics: Dict[str, Any] = {"enabled": True}
-    metrics["hostname"] = ssh_run(client, "hostname")
-    metrics["uptime"] = ssh_run(client, "uptime -p 2>/dev/null || uptime")
-    metrics["load_average"] = ssh_run(client, "cat /proc/loadavg 2>/dev/null || uptime")
-    metrics["memory"] = parse_free_output(ssh_run(client, "free -b"))
+    metrics["hostname"] = ssh_run(client, "hostname", as_postgres=True, sudo_password=sudo_password)
+    metrics["uptime"] = ssh_run(client, "uptime -p 2>/dev/null || uptime", as_postgres=True, sudo_password=sudo_password)
+    metrics["load_average"] = ssh_run(
+        client, "cat /proc/loadavg 2>/dev/null || uptime", as_postgres=True, sudo_password=sudo_password
+    )
+    metrics["memory"] = parse_free_output(ssh_run(client, "free -b", as_postgres=True, sudo_password=sudo_password))
 
     size_targets: List[Tuple[str, str]] = []
     if data_directory:
@@ -502,14 +587,24 @@ def collect_host_metrics(
     sizes: Dict[str, Dict[str, Any]] = {}
     for label, path_value in size_targets:
         quoted = shlex.quote(path_value)
-        size_output = ssh_run(client, f"du -sb {quoted} 2>/dev/null | awk '{{print $1}}'")
-        sizes[label] = {"path": path_value, "size_bytes": int(size_output)}
+        size_output = ssh_run(
+            client,
+            f"du -sb {quoted} 2>/dev/null | awk '{{print $1}}'",
+            as_postgres=True,
+            sudo_password=sudo_password,
+        )
+        sizes[label] = {
+            "path": path_value,
+            "size_bytes": parse_int(size_output, 0) or 0,
+        }
     metrics["sizes"] = sizes
 
     df_targets = list(dict.fromkeys(path_value for _, path_value in size_targets if path_value))
     if df_targets:
         quoted_targets = " ".join(shlex.quote(item) for item in df_targets)
-        metrics["filesystems"] = parse_df_output(ssh_run(client, f"df -P -B1 {quoted_targets}"))
+        metrics["filesystems"] = parse_df_output(
+            ssh_run(client, f"df -P -B1 {quoted_targets}", as_postgres=True, sudo_password=sudo_password)
+        )
     else:
         metrics["filesystems"] = []
 
@@ -521,8 +616,12 @@ def collect_host_metrics(
         quoted_archive = shlex.quote(archive_status_dir)
         ready_cmd = f"if [ -d {quoted_archive} ]; then find {quoted_archive} -maxdepth 1 -type f -name '*.ready' | wc -l; else echo 0; fi"
         done_cmd = f"if [ -d {quoted_archive} ]; then find {quoted_archive} -maxdepth 1 -type f -name '*.done' | wc -l; else echo 0; fi"
-        metrics["archive_ready_count"] = int(ssh_run(client, ready_cmd))
-        metrics["archive_done_count"] = int(ssh_run(client, done_cmd))
+        metrics["archive_ready_count"] = (
+            parse_int(ssh_run(client, ready_cmd, as_postgres=True, sudo_password=sudo_password), 0) or 0
+        )
+        metrics["archive_done_count"] = (
+            parse_int(ssh_run(client, done_cmd, as_postgres=True, sudo_password=sudo_password), 0) or 0
+        )
     else:
         metrics["archive_ready_count"] = 0
         metrics["archive_done_count"] = 0
@@ -632,7 +731,10 @@ def collect_long_running_queries(conn, settings: Dict[str, Any]) -> List[Dict[st
         from pg_stat_activity
         where pid <> pg_backend_pid()
           and state <> 'idle'
+          and coalesce(backend_type, '') <> 'walsender'
           and query_start is not null
+          and coalesce(query, '') not ilike 'start_replication%'
+          and coalesce(query, '') not ilike '%repmgr%'
           and extract(epoch from now() - query_start) >= %s
         order by runtime_seconds desc
         limit %s
@@ -1399,6 +1501,8 @@ def collect_node_report(
         conn_kwargs = build_connection_kwargs(node_cfg, settings)
         conn = psycopg2.connect(**conn_kwargs)
     except Exception as exc:
+        if is_auth_failure_message(str(exc)):
+            raise AuthenticationFailure(f"Database authentication failed for node '{node_cfg.get('name')}': {exc}") from exc
         return NodeReport(
             name=str(node_cfg.get("name")),
             host=host,
@@ -1444,7 +1548,10 @@ def collect_node_report(
                 metadata.get("data_directory"),
                 wal_directory,
                 tablespace_locations,
+                sudo_password=str((node_cfg.get("ssh", {}) or {}).get("password") or ""),
             )
+        except AuthenticationFailure:
+            raise
         except Exception as exc:
             host_metrics = {"enabled": False, "error": str(exc)}
             errors.append(f"Host collection failed: {exc}")
@@ -1920,11 +2027,15 @@ def main() -> int:
 
     node_reports: List[NodeReport] = []
     for node_cfg in selected_nodes:
-        report = collect_node_report(
-            node_cfg,
-            settings,
-            previous_nodes.get(str(node_cfg.get("name")), {}),
-        )
+        try:
+            report = collect_node_report(
+                node_cfg,
+                settings,
+                previous_nodes.get(str(node_cfg.get("name")), {}),
+            )
+        except AuthenticationFailure as exc:
+            print(f"Authentication failure detected. Stopping further processing: {exc}")
+            return 1
         node_reports.append(report)
         severity_counter = summarize_findings(report.findings)
         print(
@@ -1939,8 +2050,9 @@ def main() -> int:
     persist_state(output_dir, str(settings.get("state_file", "db_health_checks_state.json")), node_reports, generated_at)
     print(f"Consolidated report written: {report_path}")
 
+    run_success = all(report.ok for report in node_reports)
     email_cfg = config_data.get("email", {})
-    if not args.no_email and normalize_email_config(email_cfg).get("enabled", False):
+    if run_success and (not args.no_email) and normalize_email_config(email_cfg).get("enabled", False):
         try:
             text_body, html_body = build_email_bodies(node_reports, settings)
             critical_count = sum(summarize_findings(report.findings).get("critical", 0) for report in node_reports)
@@ -1952,8 +2064,10 @@ def main() -> int:
         except Exception as exc:
             print(f"Email delivery failed: {exc}")
             return 2
+    elif not run_success:
+        print("Run did not complete successfully for all nodes; email notification was skipped.")
 
-    return 0 if all(report.ok for report in node_reports) else 1
+    return 0 if run_success else 1
 
 
 if __name__ == "__main__":

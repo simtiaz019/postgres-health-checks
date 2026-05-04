@@ -34,13 +34,13 @@
   "database_defaults": {
     "database": "postgres",
     "username": "postgres",
-    "password": "Tiger#4321"
+    "password": "REPLACE_DB_PASSWORD"
   },
   "ssh_defaults": {
     "enabled": true,
     "port": 22,
-    "username": "dba_shariar",
-    "password": "Zbang@987_big#",
+    "username": "named_os_user",
+    "password": "REPLACE_OS_PASSWORD",
     "timeout_seconds": 20,
     "look_for_keys": false,
     "allow_agent": false
@@ -55,35 +55,35 @@
     {
       "name": "node2",
       "host": "172.23.4.21",
-      "port": 9999
+      "port": 10000
     },
     {
       "name": "node3",
       "host": "172.23.4.22",
-      "port": 9999
+      "port": 10001
     },
     {
       "name": "node4",
-      "host": "172.24.4.40",
-      "port": 5679
+      "host": "172.23.4.23",
+      "port": 10002
     },
     {
       "name": "node5",
-      "host": "172.24.4.41",
-      "port": 5679
+      "host": "172.23.4.24",
+      "port": 10003
     }
   ],
   "email": {
     "enabled": true,
     "SMTP_HOST": "172.16.5.30",
     "SMTP_PORT": "25",
-    "SMTP_MAIL_FROM": "bi.report@pbftl.com",
-    "SMTP_FROM_NAME": "DB_Health_Checks",
-    "SMTP_EHLO_IDENTITY": "DB_Health_Checks.pbftl",
+    "SMTP_MAIL_FROM": "dba@xxx.com",
+    "SMTP_FROM_NAME": "Airflow",
+    "SMTP_EHLO_IDENTITY": "airflow.xxxx",
     "SMTP_STARTTLS": "False",
     "SMTP_SSL": "False",
     "to": [
-      "shariar.imtiaz@pbftl.com"
+      "xyz@xxxx.com"
     ]
   }
 }
